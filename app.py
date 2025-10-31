@@ -568,14 +568,14 @@ with tabs[0]:
 with tabs[1]:
     import numpy as np
 
-    # Fix numpy bool deprecation for SHAP
+    # Fix numpy bool deprecation (for SHAP compatibility)
     if not hasattr(np, "bool"):
         np.bool = bool
 
     st.header("Explainability & Local Insights")
 
     if 'last_input' not in st.session_state:
-        st.info("No recent prediction yet. Run a prediction to view explainability.")
+        st.info("No recent prediction found. Make a prediction first to see explainability.")
     else:
         Xlast = build_input_df(st.session_state['last_input'])
 
@@ -583,7 +583,7 @@ with tabs[1]:
             st.subheader("📊 Prediction Explainability")
 
             try:
-                # Prepare data
+                # Data for SHAP
                 if preproc is not None:
                     Xtr = preproc.transform(Xlast)
                     model_for_shap = clf if clf is not None else pipeline
@@ -596,39 +596,41 @@ with tabs[1]:
                     model_for_shap = pipeline
                     feature_names = Xlast.columns
 
-                # Create SHAP explainer
+                # SHAP Explainer
                 explainer = shap.Explainer(model_for_shap, Xtr, feature_names=feature_names)
                 shap_values = explainer(Xtr)
 
-                # Try waterfall plot first
+                # Try waterfall plot
                 try:
                     st.write("🧠 Model Explanation (Waterfall Plot)")
                     shap.plots.waterfall(shap_values[0])
                     st.pyplot(bbox_inches="tight")
 
                 except Exception:
-                    st.write("📎 Showing simplified feature impact")
+                    st.warning("📎 Detailed SHAP plot unavailable. Showing feature impact summary instead.")
                     shap.plots.bar(shap_values)
                     st.pyplot(bbox_inches="tight")
 
             except Exception:
-                # Final fallback: feature importance
+                # SHAP failed entirely; try feature importance
                 imp = getattr(clf, "feature_importances_", None)
                 if imp is not None:
-                    st.write("📌 Model Feature Importance")
-                    fi = pd.DataFrame({"feature": feature_names, "importance": imp}).sort_values("importance", ascending=False).head(10)
+                    st.subheader("📌 Model Feature Importance")
+                    fi = pd.DataFrame({"feature": feature_names, "importance": imp})\
+                          .sort_values("importance", ascending=False).head(10)
                     st.bar_chart(fi.set_index("feature"))
                 else:
-                    st.info("ℹ️ Detailed explainability is unavailable for this model.")
+                    st.info("ℹ️ Explainability isn't available for this model.")
         else:
-            st.info("ℹ️ SHAP is not available in this environment.")
+            st.info("ℹ️ SHAP isn't installed in this environment.")
             imp = getattr(clf, "feature_importances_", None)
             if imp is not None and preproc is not None:
                 feature_names = preproc.get_feature_names_out()
-                fi = pd.DataFrame({"feature": feature_names, "importance": imp}).sort_values("importance", ascending=False).head(10)
+                fi = pd.DataFrame({"feature": feature_names, "importance": imp})\
+                      .sort_values("importance", ascending=False).head(10)
                 st.bar_chart(fi.set_index("feature"))
             else:
-                st.write("No model explainability available.")
+                st.write("No explainability options available.")
 
 
 # -------------------- DASHBOARD TAB --------------------
