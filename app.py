@@ -568,7 +568,7 @@ with tabs[0]:
 with tabs[1]:
     import numpy as np
 
-    # Fix numpy bool deprecation
+    # Fix numpy bool deprecation for SHAP
     if not hasattr(np, "bool"):
         np.bool = bool
 
@@ -580,15 +580,13 @@ with tabs[1]:
         Xlast = build_input_df(st.session_state['last_input'])
 
         if SHAP_AVAILABLE:
-            st.write("✅ SHAP available — generating explanation...")
+            st.subheader("📊 SHAP Model Explainability")
 
             try:
-                # Prepare data for SHAP
+                # Prepare data
                 if preproc is not None:
                     Xtr = preproc.transform(Xlast)
                     model_for_shap = clf if clf is not None else pipeline
-
-                    # Get feature names safely
                     try:
                         feature_names = preproc.get_feature_names_out()
                     except:
@@ -602,31 +600,28 @@ with tabs[1]:
                 explainer = shap.Explainer(model_for_shap, Xtr, feature_names=feature_names)
                 shap_values = explainer(Xtr)
 
-                # Try force plot first (safer than waterfall)
+                # Try waterfall plot first (cleaner for health apps)
                 try:
-                    shap.force_plot(
-                        explainer.expected_value,
-                        shap_values.values,
-                        Xlast,
-                        matplotlib=True
-                    )
+                    st.write("🧠 Feature contribution (Waterfall Plot)")
+                    shap.plots.waterfall(shap_values[0])
                     st.pyplot(bbox_inches='tight')
 
                 except Exception:
-                    st.warning("⚠ SHAP force plot failed. Showing bar summary instead.")
+                    # Fallback: bar summary
+                    st.write("📎 Showing feature importance summary instead")
                     shap.plots.bar(shap_values)
                     st.pyplot(bbox_inches='tight')
 
             except Exception as e:
-                st.warning(f"⚠ SHAP failed: {e}")
-
-                # Fallback to feature importance if available
+                # If SHAP totally fails
+                st.info("Switching to feature importance view.")
                 imp = getattr(clf, "feature_importances_", None)
                 if imp is not None:
-                    fi = pd.DataFrame({"feature": feature_names, "importance": imp}).sort_values("importance", ascending=False).head(10)
+                    fi = pd.DataFrame({"feature": feature_names, "importance": imp})
+                    fi = fi.sort_values("importance", ascending=False).head(10)
                     st.bar_chart(fi.set_index("feature"))
                 else:
-                    st.info("No feature importance available.")
+                    st.warning("Explainability unavailable.")
         else:
             st.info("SHAP not installed. Showing feature importance if available.")
             imp = getattr(clf, "feature_importances_", None)
