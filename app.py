@@ -586,9 +586,14 @@ with tabs[1]:
                     model_for_shap = pipeline
                 explainer = shap.Explainer(model_for_shap, Xtr)
                 shap_values = explainer(Xtr)
-                fig, ax = plt.subplots(figsize=(6,4))
-                shap.plots.waterfall(shap_values[0], show=False)
-                st.pyplot(fig)
+            try:
+                shap.force_plot(explainer.expected_value, shap_values.values, Xlast, matplotlib=True)
+                st.pyplot(bbox_inches='tight')
+            except Exception:
+                st.write("SHAP plot too big to render waterfall. Showing bar summary instead.")
+                shap.plots.bar(shap_values)
+                st.pyplot(bbox_inches='tight')
+
             except Exception as e:
                 st.warning(f"SHAP failed: {e}")
                 imp = getattr(clf, "feature_importances_", None)
