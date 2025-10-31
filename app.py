@@ -566,6 +566,10 @@ with tabs[0]:
 
 # -------------------- EXPLAIN TAB --------------------
 with tabs[1]:
+    import numpy as np
+    if not hasattr(np, "bool"):
+    np.bool = bool
+
     st.header("Explainability & Local Insights")
     if 'last_input' not in st.session_state:
         st.info("No recent input. Run a prediction in Predict tab.")
