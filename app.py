@@ -567,39 +567,63 @@ with tabs[0]:
 # -------------------- EXPLAIN TAB --------------------
 with tabs[1]:
     import numpy as np
+
+    # Fix numpy bool deprecation
     if not hasattr(np, "bool"):
         np.bool = bool
 
     st.header("Explainability & Local Insights")
+
     if 'last_input' not in st.session_state:
         st.info("No recent input. Run a prediction in Predict tab.")
     else:
         Xlast = build_input_df(st.session_state['last_input'])
+
         if SHAP_AVAILABLE:
-            st.write("SHAP available — attempting explanation.")
+            st.write("✅ SHAP available — generating explanation...")
+
             try:
+                # Prepare data for SHAP
                 if preproc is not None:
                     Xtr = preproc.transform(Xlast)
                     model_for_shap = clf if clf is not None else pipeline
+
+                    # Get feature names safely
+                    try:
+                        feature_names = preproc.get_feature_names_out()
+                    except:
+                        feature_names = Xlast.columns
                 else:
                     Xtr = Xlast
                     model_for_shap = pipeline
-                explainer = shap.Explainer(model_for_shap, Xtr)
+                    feature_names = Xlast.columns
+
+                # Build SHAP explainer
+                explainer = shap.Explainer(model_for_shap, Xtr, feature_names=feature_names)
                 shap_values = explainer(Xtr)
-            try:
-                shap.force_plot(explainer.expected_value, shap_values.values, Xlast, matplotlib=True)
-                st.pyplot(bbox_inches='tight')
-            except Exception:
-                st.write("SHAP plot too big to render waterfall. Showing bar summary instead.")
-                shap.plots.bar(shap_values)
-                st.pyplot(bbox_inches='tight')
+
+                # Try force plot first (safer than waterfall)
+                try:
+                    shap.force_plot(
+                        explainer.expected_value,
+                        shap_values.values,
+                        Xlast,
+                        matplotlib=True
+                    )
+                    st.pyplot(bbox_inches='tight')
+
+                except Exception:
+                    st.warning("⚠ SHAP force plot failed. Showing bar summary instead.")
+                    shap.plots.bar(shap_values)
+                    st.pyplot(bbox_inches='tight')
 
             except Exception as e:
-                st.warning(f"SHAP failed: {e}")
+                st.warning(f"⚠ SHAP failed: {e}")
+
+                # Fallback to feature importance if available
                 imp = getattr(clf, "feature_importances_", None)
-                if imp is not None and preproc is not None:
-                    feat_names = preproc.get_feature_names_out()
-                    fi = pd.DataFrame({"feature": feat_names, "importance": imp}).sort_values("importance", ascending=False).head(10)
+                if imp is not None:
+                    fi = pd.DataFrame({"feature": feature_names, "importance": imp}).sort_values("importance", ascending=False).head(10)
                     st.bar_chart(fi.set_index("feature"))
                 else:
                     st.info("No feature importance available.")
@@ -607,8 +631,8 @@ with tabs[1]:
             st.info("SHAP not installed. Showing feature importance if available.")
             imp = getattr(clf, "feature_importances_", None)
             if imp is not None and preproc is not None:
-                feat_names = preproc.get_feature_names_out()
-                fi = pd.DataFrame({"feature": feat_names, "importance": imp}).sort_values("importance", ascending=False).head(10)
+                feature_names = preproc.get_feature_names_out()
+                fi = pd.DataFrame({"feature": feature_names, "importance": imp}).sort_values("importance", ascending=False).head(10)
                 st.bar_chart(fi.set_index("feature"))
             else:
                 st.write("Explainability not available in this environment.")
